@@ -489,6 +489,21 @@ let state = {
 };
 
 async function fetchText(url){
+  // Try direct fetch first (Google Sheets usually allows CORS)
+  try {
+    const directUrl = url + (url.includes("?") ? "&" : "?") + "cb=" + Date.now();
+    const res = await fetch(directUrl, { 
+      cache: "no-store",
+      mode: "cors"
+    });
+    if(res.ok) {
+      return await res.text();
+    }
+  } catch (directError) {
+    Logger.log("Direct fetch failed, trying proxy: " + directError);
+  }
+  
+  // Fallback to CORS proxy if direct fails
   const corsProxy = "https://api.allorigins.win/raw?url=";
   const u = corsProxy + encodeURIComponent(url + (url.includes("?") ? "&" : "?") + "cb=" + Date.now());
   const res = await fetch(u, { cache:"no-store" });
