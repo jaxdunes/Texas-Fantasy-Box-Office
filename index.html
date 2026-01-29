@@ -76,7 +76,7 @@
       backdrop-filter: blur(10px);
     }
     .chip .miniDot{width:8px;height:8px;border-radius:999px;background:rgba(255,255,255,.25);}
-    button{
+    button, select{
       appearance:none;
       border:1px solid var(--stroke);
       background: rgba(255,255,255,.08);
@@ -85,9 +85,11 @@
       border-radius:999px;
       cursor:pointer;
       transition:.15s transform, .15s background;
+      font-family: 'Space Mono', monospace;
     }
-    button:hover{transform:translateY(-1px);background: rgba(255,255,255,.12);}
+    button:hover, select:hover{transform:translateY(-1px);background: rgba(255,255,255,.12);}
     button:active{transform:translateY(0px);}
+    select{padding-right:30px;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23eef0ff' d='M6 9L1 4h10z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;}
     .grid{
       margin-top:18px;
       display:grid;
@@ -303,6 +305,7 @@
       font-size:12px;
     }
     a{color:inherit}
+    .actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center;}
   </style>
 </head>
 <body>
@@ -310,7 +313,7 @@
     <div class="hero">
       <div class="kicker"><span class="dot"></span> 🤠 TEXAS • Q1 • LIVE STANDINGS</div>
       <h1>Texas Fantasy Box Office League</h1>
-      <p class="sub">Hits earn their own profit. Bombs are split across opponents.</p>
+      <p class="sub">Everything's bigger in Texas - including our box office profits!</p>
 
       <div class="topbar">
         <div class="chips">
@@ -319,6 +322,11 @@
           <span class="chip"><span class="miniDot"></span> <span id="countText">0</span> players</span>
         </div>
         <div class="actions">
+          <select id="leagueFilter">
+            <option value="all">All Players</option>
+            <option value="cavendish">Cult of Cavendish</option>
+            <option value="chinese">Garret's Chinese Box Office</option>
+          </select>
           <button id="refreshBtn">⟳ Refresh now</button>
           <button id="clearBtn">× Clear selection</button>
         </div>
@@ -373,6 +381,14 @@ const API_CSV_URL =
 
 const MOVIES_CSV_URL =
   "https://docs.google.com/spreadsheets/d/e/2PACX-1vR4KwaNAjKgx_8gkFYJqfsizgBvQlkio43dt-TNiE8lavM8uudlxcs_R7x--iuEYSHUcpOBtt7iaFXd/pub?gid=0&single=true&output=csv";
+
+// League definitions
+const LEAGUES = {
+  cavendish: ['Jackson2', 'Beccavor', 'Bryce', 'Garret2', 'Ryan'],
+  chinese: ['Jackson1', 'Sam', 'Garret1', 'Sandraustin', 'Mauricio']
+};
+
+let currentLeagueFilter = 'all';
 
 /* ------------------ helpers ------------------ */
 
@@ -500,7 +516,7 @@ async function fetchText(url){
       return await res.text();
     }
   } catch (directError) {
-    Logger.log("Direct fetch failed, trying proxy: " + directError);
+    console.log("Direct fetch failed, trying proxy: " + directError);
   }
   
   // Fallback to CORS proxy if direct fails
@@ -673,13 +689,23 @@ function renderStandings(){
 
   const q = document.getElementById("search").value.trim().toLowerCase();
 
+  // Filter players based on league selection
+  let filteredPlayers = state.players;
+  if (currentLeagueFilter !== 'all') {
+    const leaguePlayers = LEAGUES[currentLeagueFilter];
+    filteredPlayers = state.players.filter(p => leaguePlayers.includes(p.player));
+  }
+
+  // Apply search filter
+  if (q) {
+    filteredPlayers = filteredPlayers.filter(p => p.player.toLowerCase().includes(q));
+  }
+
   let currentRank = 1;
   let previousTotal = null;
   let playersAtCurrentRank = 0;
 
-  state.players.forEach((p, idx) => {
-    if(q && !p.player.toLowerCase().includes(q)) return;
-
+  filteredPlayers.forEach((p, idx) => {
     if(previousTotal !== null && Math.abs(p.total - previousTotal) > 0.01){
       currentRank += playersAtCurrentRank;
       playersAtCurrentRank = 1;
@@ -714,6 +740,12 @@ function renderStandings(){
     row.appendChild(money);
     list.appendChild(row);
   });
+
+  // Update player count with league filter info
+  const filterText = currentLeagueFilter === 'all' ? '' : 
+                     currentLeagueFilter === 'cavendish' ? ' (Cult of Cavendish)' : 
+                     ' (Chinese Box Office)';
+  document.getElementById("standingsMeta").textContent = `${filteredPlayers.length} players${filterText}`;
 }
 
 function lookupProfit(title){
@@ -1040,6 +1072,12 @@ document.getElementById("clearBtn").addEventListener("click", () => {
 });
 
 document.getElementById("search").addEventListener("input", renderStandings);
+
+// Add league filter listener
+document.getElementById("leagueFilter").addEventListener("change", function() {
+  currentLeagueFilter = this.value;
+  renderStandings();
+});
 
 function showError(err){
   document.getElementById("statusText").textContent = "Error";
